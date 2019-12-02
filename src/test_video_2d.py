@@ -45,9 +45,6 @@ if __name__ == '__main__':
 
     cap = cv2.VideoCapture(sys.argv[1])
 #    cap = cv2.VideoCapture(0)
-    
-    hog = cv2.HOGDescriptor()
-    hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
     dim = 640
     out_dim = 80
