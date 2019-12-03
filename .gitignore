@@ -1,0 +1,4 @@
+pafprocess/build
+*.pyc
+*.cxx
+*.so

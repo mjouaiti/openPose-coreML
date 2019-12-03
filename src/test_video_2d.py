@@ -5,6 +5,10 @@ import time
 import matplotlib.pyplot as plt
 import cv2
 import sys
+from scipy.ndimage.filters import maximum_filter
+from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
+
+from skimage.feature import peak_local_max
 
 try:
     from pafprocess import pafprocess
@@ -69,12 +73,18 @@ if __name__ == '__main__':
             pafMat[:,:, i] = pafMat2[i,:,:]
         
         preds = [np.mean(np.argwhere(heatMat[:,:,i] > 0.1), axis=0)[::-1] for i in range(19)]
+        
+        print preds
+        smoother = cv2.GaussianBlur(heatMat, ksize=(25, 25), sigmaX=3.0, sigmaY=3.0)
         peaks = np.zeros((80, 80, 19))
-        for i, pred in enumerate(preds):
-            try:
-                peaks[int(pred[1]), int(pred[0]), i] = heatMat[int(pred[1]), int(pred[0]), i]
-            except:
-                pass
+        background = np.zeros((80, 80))
+        for i in range(19):
+            local_max = maximum_filter(smoother[:,:,i], size=3)==smoother[:,:,i]
+            peaks[local_max, i] = heatMat[local_max,i]
+        
+        plt.figure()
+        plt.imshow(np.sum(peaks[:,:,i] for i in range(19)))
+        plt.show()
         
         #Particule Affinity Field to separate people
         pafprocess.process_paf(peaks.astype('float32'), heatMat.astype('float32'), pafMat.astype('float32'))
@@ -115,6 +125,6 @@ if __name__ == '__main__':
             plt.pause(0.001)
     
             cv2.imshow("result", resized)
-            cv2.waitKey(1)
+            cv2.waitKey(0)
                     
 
