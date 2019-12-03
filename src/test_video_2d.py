@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import cv2
 import sys
 
-
 try:
     from pafprocess import pafprocess
 except ModuleNotFoundError as e:
@@ -30,41 +29,34 @@ except ModuleNotFoundError as e:
 #12: "L knee"           ---> 13
 #13: "L ankle"
 
-DISPLAY = 1
+DISPLAY = 1 # 1-0 to display or not the results of the inference. Note that the program is much slower with dispaly enabled.
 
 connections = [[0, 1], [1, 2], [1, 5], [1, 8], [1, 11],
                 [2, 3], [3, 4], [5, 6], [6, 7],
                 [8, 9], [9, 10], [11, 12], [12, 13]]
 
 if __name__ == '__main__':
-    
-    frame = 0
+    dim = 640 #320
+    out_dim = 80 #40
+    scale = 8
+    key = "Openpose__concat_stage7__0"
     
     # Load the model
-    model =  coremltools.models.MLModel("/Users/Melanie/tf-pose-estimation/models/graph/mobilenet_thin/graph640.mlmodel")
+    model =  coremltools.models.MLModel("/Users/Melanie/tf-pose-estimation/models/graph/mobilenet_thin/graph" + str(dim) + ".mlmodel")
 
     cap = cv2.VideoCapture(sys.argv[1])
 #    cap = cv2.VideoCapture(0)
 
-    dim = 640
-    out_dim = 80
-    scale = 8
-    key = "Openpose__concat_stage7__0"
+    if DISPLAY:
+        plt.figure()
     
-    p_top, p_neck = 0, 0
-    p_rShoulder, p_lShoulder = 0, 0
-    p_rElbow, p_lElbow= 0, 0
-    p_rWrist, p_lWrist = 0, 0
-    p_rHip, p_lHip = 0, 0
-    p_rKnee, p_lKnee = 0, 0
-    p_rAnkle, p_lAnkle = 0, 0
-    
-    plt.figure()
     while cap.isOpened():
         _, img = cap.read()
         t = time.time()
         img = Image.fromarray(img)
         resized = img.resize((dim, dim), Image.LINEAR)
+        
+        #Inference
         predictions = model.predict({"image__0": resized}, False)
         
         heatMat2 = predictions[key][:19,:,:]
@@ -76,21 +68,15 @@ if __name__ == '__main__':
         for i in range(38):
             pafMat[:,:, i] = pafMat2[i,:,:]
         
-        
-        print time.time() - t
-        
         preds = [np.mean(np.argwhere(heatMat[:,:,i] > 0.1), axis=0)[::-1] for i in range(19)]
-        preds_t = []
-        for pred in preds:
-            try:
-                preds_t.append(tuple(int(x) for x in pred))
-            except:
-                preds_t.append((0, 0))
-
         peaks = np.zeros((80, 80, 19))
-        for i in range(19):
-            peaks[preds_t[i][1], preds_t[i][0], i] = heatMat[preds_t[i][1], preds_t[i][0], i]
+        for i, pred in enumerate(preds):
+            try:
+                peaks[int(pred[1]), int(pred[0]), i] = heatMat[int(pred[1]), int(pred[0]), i]
+            except:
+                pass
         
+        #Particule Affinity Field to separate people
         pafprocess.process_paf(peaks.astype('float32'), heatMat.astype('float32'), pafMat.astype('float32'))
         
         humans = []
@@ -107,14 +93,14 @@ if __name__ == '__main__':
             body_parts = np.array([[body_parts[i][0] * scale, body_parts[i][1] * scale] for i in range(18)]).flatten()
             humans.append(body_parts)
         
+        # Draw human body parts
         d = ImageDraw.Draw(resized)
-        
         for _data in humans:
             for pair in connections:
                 if (_data[pair[0] * 2], _data[pair[0] * 2 + 1]) != (0, 0) and (_data[pair[1] * 2], _data[pair[1] * 2 + 1]) != (0, 0):
                     d.line([(_data[pair[0] * 2], _data[pair[0] * 2 + 1]), (_data[pair[1] * 2], _data[pair[1] * 2 + 1])], fill=(255, 255, 255), width=2)
-
-        print time.time() - t
+        
+        print "inference time: ", time.time() - t
         
         if DISPLAY:
             resized = np.array(resized)
